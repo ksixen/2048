@@ -11,11 +11,11 @@ enum Directions {
 type DirectionsType = Directions;
 type BlockType = {
   id: number;
-  value?: number | null;
+  value: number;
 };
 type MainStore = {
   count: number;
-  list: BlockType[][];
+  list: Record<number, BlockType[]>;
 };
 
 type ActionPayload = {
@@ -25,19 +25,30 @@ type ActionPayload = {
   };
 };
 
-const getHorizontalCornerItem = (arr: number = 0, position: string): number => {
-  if (position === Directions.left){
-    return 0
-  } else {
-    return arr - 1
-  }
-}
-
+const moveHorizontal = (list: any[]) => {
+  const items = list;
+  items.forEach((item, index) => {
+    if (
+      Number(items[index - 1]?.value) === Number(item?.value) ||
+      items[index - 1]?.value === 0
+    ) {
+      items[index - 1] = {
+        ...items[index - 1],
+        value: Number(items[index - 1]?.value) + Number(item?.value),
+      };
+      items[index] = {
+        ...item,
+        value: 0,
+      };
+    }
+  });
+  return items;
+};
 const MainReducer = (state: MainStore, action: ActionPayload): MainStore => {
   switch (action.type) {
     case "genereate":
       state.list = [];
-      for (let index = 0; index < state.count; index++) {
+      for (let index = 0; index < 4; index++) {
         const arr = [];
         const weights = [0.3, 0.1, 0.8];
         const results = [2, 4, 0];
@@ -47,21 +58,62 @@ const MainReducer = (state: MainStore, action: ActionPayload): MainStore => {
             value: getRandom(weights, results),
           });
         }
-        state.list.push(arr);
+        state.list[index] = arr;
       }
       return state;
     case "move":
-      for (let index = 0; index < state.list.length; index++) {
-        const item = state.list[index];
-        let newValue = 0;
-        item.forEach((i, index) => newValue += Number(i.value));
-        state.list[index] = state.list[index].map((i, index) => ({
-          id: i.id,
-          value: 0
-        }));
-        const corner = getHorizontalCornerItem(item.length, String(action.payload?.direction))
-        state.list[index][corner].value = newValue
-        console.log(original(state.list))
+      const columns = Object.keys(state.list);
+
+      if (action.payload?.direction === "left") {
+        columns.forEach((key: any) => {
+          state.list[key] = moveHorizontal(state.list[key]);
+        });
+      } else if (action.payload?.direction === "right") {
+        columns.forEach((key: any) => {
+          state.list[key] = moveHorizontal(state.list[key].reverse()).reverse();
+        });
+      } else if (action.payload?.direction === "top") {
+        columns.forEach((key: string, i, arr) => {
+          const prevItemKey = Number(arr[i - 1]);
+          const topItem = state.list[prevItemKey] && state.list[prevItemKey][i];
+          const currentItem =
+            state.list[Number(key)] && state.list[Number(key)][i];
+          if (
+            Number(topItem?.value) === Number(currentItem?.value) ||
+            Number(topItem?.value) === 0
+          ) {
+            state.list[prevItemKey][i] = {
+              id: topItem?.id,
+              value: Number(topItem?.value) + Number(currentItem?.value),
+            };
+            state.list[Number(key)][i] = {
+              id: state.list[Number(key)][i]?.id,
+              value: 0,
+            };
+          }
+        });
+      } else if (action.payload?.direction === "bottom") {
+        columns.forEach((key: string, i, arr) => {
+          const nextItemKey = Number(arr[i + 1]);
+          const currentItem =
+            state.list[Number(key)] && state.list[Number(key)][i];
+          const nextItem =
+            state.list[nextItemKey] && state.list[nextItemKey][i];
+          // console.log(original(arr));
+          if (
+            Number(nextItem?.value) === Number(currentItem?.value) ||
+            nextItem?.value === 0
+          ) {
+            state.list[nextItemKey][i] = {
+              id: nextItem?.id,
+              value: Number(nextItem?.value) + Number(currentItem?.value),
+            };
+            state.list[Number(key)][i] = {
+              id: state.list[Number(key)][i]?.id,
+              value: 0,
+            };
+          }
+        });
       }
       return state;
     default:
@@ -100,7 +152,7 @@ const RowBlocks = ({ items }: { items: BlockType[] }) => {
               {block.value}
             </div>
           ) : (
-            <></>
+            <>{block.value}</>
           )}
         </div>
       ))}
@@ -123,6 +175,7 @@ const App = () => {
       payload: {
         direction: direction,
         id: 0,
+        value: 0,
       },
     });
   }, []);
@@ -157,7 +210,7 @@ const App = () => {
       >
         ASDSADSAD
       </button>
-      {store.list.map((i, index) => (
+      {Object.values(store.list).map((i, index) => (
         <RowBlocks items={i} key={index} />
       ))}
     </>
